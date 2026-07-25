@@ -116,10 +116,52 @@ def test_get_schema_nullable():
         "title": "DcNone",
         "properties": {
             "a": {"type": "null"},
-            "b": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
-            "c": {"anyOf": [{"type": "null"}, {"type": "integer"}]},
+            # a single concrete type + None collapses to a `type` array;
+            # `c` also shows the null arm normalised to last, concrete first.
+            "b": {"type": ["integer", "null"]},
+            "c": {"type": ["integer", "null"]},
         },
         "required": ["a", "b", "c"],
+    }
+
+
+@dataclasses.dataclass
+class DcNullableCollapse:
+    a: int | None  # bare concrete + None -> type array
+    b: t.Optional[str]  # Optional spelling, same collapse
+    c: int | str | None  # >1 concrete arm -> anyOf
+    d: t.Optional[datetime.datetime]  # arm carries `format` -> anyOf
+    e: t.Annotated[  # annotated field -> anyOf
+        t.Optional[int], SchemaAnnotation(description="id")
+    ]
+
+
+def test_get_schema_nullable_collapse():
+    """`X | None` collapses to a `type` array only when nothing else needs a
+    home; otherwise it stays an anyOf (see wiki nullable-union-type-array)."""
+    schema = get_schema(DcNullableCollapse)
+    print(schema)
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"] == {
+        "a": {"type": ["integer", "null"]},
+        "b": {"type": ["string", "null"]},
+        "c": {
+            "anyOf": [
+                {"type": "integer"},
+                {"type": "string"},
+                {"type": "null"},
+            ]
+        },
+        "d": {
+            "anyOf": [
+                {"type": "string", "format": "date-time"},
+                {"type": "null"},
+            ]
+        },
+        "e": {
+            "anyOf": [{"type": "integer"}, {"type": "null"}],
+            "description": "id",
+        },
     }
 
 

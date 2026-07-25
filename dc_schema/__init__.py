@@ -176,24 +176,34 @@ class _GetSchema:
             raise NotImplementedError(f"field type '{type_}' not implemented")
 
     def get_union_schema(self, type_, default, annotation):
-        args = t.get_args(type_)
+        arms = [
+            self.get_field_schema(arg, _MISSING, SchemaAnnotation())
+            for arg in t.get_args(type_)
+        ]
+        body = self.collapse_nullable(arms, annotation)
         if default is _MISSING:
-            return {
-                "anyOf": [
-                    self.get_field_schema(arg, _MISSING, SchemaAnnotation())
-                    for arg in args
-                ],
-                **annotation.schema(),
-            }
-        else:
-            return {
-                "anyOf": [
-                    self.get_field_schema(arg, _MISSING, SchemaAnnotation())
-                    for arg in args
-                ],
-                "default": default,
-                **annotation.schema(),
-            }
+            return {**body, **annotation.schema()}
+        return {**body, "default": default, **annotation.schema()}
+
+    def collapse_nullable(self, arms, annotation):
+        # A single concrete type plus None reads better as a `type` array --
+        # {"type": ["integer", "null"]} -- than as a two-branch anyOf, and it
+        # yields a smaller validation error. Collapse only when nothing else
+        # needs a home: the concrete arm is a bare {"type": <name>}, and the
+        # field carries no annotation that would attach to one of the arms.
+        # Otherwise keep the explicit anyOf, where each arm owns its keywords.
+        concrete = [arm for arm in arms if arm != {"type": "null"}]
+        nullable = len(concrete) < len(arms)
+        collapsible = (
+            nullable
+            and len(concrete) == 1
+            and list(concrete[0]) == ["type"]
+            and isinstance(concrete[0]["type"], str)
+            and not annotation.schema()
+        )
+        if collapsible:
+            return {"type": [concrete[0]["type"], "null"]}
+        return {"anyOf": arms}
 
     def get_literal_schema(self, type_, default, annotation):
         if default is _MISSING:
