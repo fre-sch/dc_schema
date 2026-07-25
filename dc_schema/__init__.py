@@ -46,7 +46,10 @@ class SchemaAnnotation:
     min_length: t.Optional[int] = None
     max_length: t.Optional[int] = None
     pattern: t.Optional[str] = None
-    format: t.Optional[_Format] = None
+    # Any string: `format` is an open, annotation-only keyword in 2020-12, so
+    # custom/unimplemented values (e.g. "uri-template", "byte") pass through.
+    # `_Format` lists the standard values for reference.
+    format: t.Optional[str] = None
     minimum: t.Optional[numbers.Number] = None
     maximum: t.Optional[numbers.Number] = None
     exclusive_minimum: t.Optional[numbers.Number] = None
@@ -90,9 +93,11 @@ class _GetSchema:
         }
 
     def get_dc_schema(self, dc, annotation):
+        # 2020-12 allows keywords beside `$ref`, so a bare `$ref` (plus any
+        # annotation keywords) suffices -- no draft-7 `allOf` wrapper needed.
         if dc == self.root:
             if self.seen_root:
-                return {"allOf": [{"$ref": "#"}], **annotation.schema()}
+                return {"$ref": "#", **annotation.schema()}
             else:
                 self.seen_root = True
                 schema = self.create_dc_schema(dc)
@@ -101,10 +106,7 @@ class _GetSchema:
             if dc.__name__ not in self.defs:
                 schema = self.create_dc_schema(dc)
                 self.defs[dc.__name__] = schema
-            return {
-                "allOf": [{"$ref": f"#/$defs/{dc.__name__}"}],
-                **annotation.schema(),
-            }
+            return {"$ref": f"#/$defs/{dc.__name__}", **annotation.schema()}
 
     def create_dc_schema(self, dc):
         if hasattr(dc, "SchemaConfig"):
@@ -150,7 +152,7 @@ class _GetSchema:
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
         if type_ is t.Any:
-            return self.get_any_schema(annotation)
+            return self.get_any_schema(default, annotation)
         if type_ is object:
             raise TypeError(
                 "bare `object` is ambiguous for JSON Schema: use `typing.Any` "
@@ -300,9 +302,11 @@ class _GetSchema:
         else:
             return {"type": "array", "uniqueItems": True, **annotation.schema()}
 
-    def get_any_schema(self, annotation):
+    def get_any_schema(self, default, annotation):
         # `typing.Any`: an empty schema accepts any JSON value.
-        return {**annotation.schema()}
+        if default is _MISSING:
+            return {**annotation.schema()}
+        return {"default": default, **annotation.schema()}
 
     def get_none_schema(self, default, annotation):
         if default is _MISSING:
@@ -350,13 +354,10 @@ class _GetSchema:
                 "enum": [v.value for v in type_],
             }
         if default is _MISSING:
-            return {
-                "allOf": [{"$ref": f"#/$defs/{type_.__name__}"}],
-                **annotation.schema(),
-            }
+            return {"$ref": f"#/$defs/{type_.__name__}", **annotation.schema()}
         else:
             return {
-                "allOf": [{"$ref": f"#/$defs/{type_.__name__}"}],
+                "$ref": f"#/$defs/{type_.__name__}",
                 "default": default.value,
                 **annotation.schema(),
             }
