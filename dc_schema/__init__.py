@@ -90,9 +90,11 @@ class _GetSchema:
         }
 
     def get_dc_schema(self, dc, annotation):
+        # 2020-12 allows keywords beside `$ref`, so a bare `$ref` (plus any
+        # annotation keywords) suffices -- no draft-7 `allOf` wrapper needed.
         if dc == self.root:
             if self.seen_root:
-                return {"allOf": [{"$ref": "#"}], **annotation.schema()}
+                return {"$ref": "#", **annotation.schema()}
             else:
                 self.seen_root = True
                 schema = self.create_dc_schema(dc)
@@ -101,10 +103,7 @@ class _GetSchema:
             if dc.__name__ not in self.defs:
                 schema = self.create_dc_schema(dc)
                 self.defs[dc.__name__] = schema
-            return {
-                "allOf": [{"$ref": f"#/$defs/{dc.__name__}"}],
-                **annotation.schema(),
-            }
+            return {"$ref": f"#/$defs/{dc.__name__}", **annotation.schema()}
 
     def create_dc_schema(self, dc):
         if hasattr(dc, "SchemaConfig"):
@@ -352,13 +351,10 @@ class _GetSchema:
                 "enum": [v.value for v in type_],
             }
         if default is _MISSING:
-            return {
-                "allOf": [{"$ref": f"#/$defs/{type_.__name__}"}],
-                **annotation.schema(),
-            }
+            return {"$ref": f"#/$defs/{type_.__name__}", **annotation.schema()}
         else:
             return {
-                "allOf": [{"$ref": f"#/$defs/{type_.__name__}"}],
+                "$ref": f"#/$defs/{type_.__name__}",
                 "default": default.value,
                 **annotation.schema(),
             }

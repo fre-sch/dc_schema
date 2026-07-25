@@ -265,10 +265,10 @@ def test_get_schema_refs():
         "type": "object",
         "title": "DcRefs",
         "properties": {
-            "a": {"allOf": [{"$ref": "#/$defs/DcRefsChild"}]},
+            "a": {"$ref": "#/$defs/DcRefsChild"},
             "b": {
                 "type": "array",
-                "items": {"allOf": [{"$ref": "#/$defs/DcRefsChild"}]},
+                "items": {"$ref": "#/$defs/DcRefsChild"},
             },
         },
         "required": ["a", "b"],
@@ -300,8 +300,8 @@ def test_get_schema_self_refs():
         "title": "DcRefsSelf",
         "properties": {
             "a": {"type": "string"},
-            "b": {"anyOf": [{"allOf": [{"$ref": "#"}]}, {"type": "null"}]},
-            "c": {"type": "array", "items": {"allOf": [{"$ref": "#"}]}},
+            "b": {"anyOf": [{"$ref": "#"}, {"type": "null"}]},
+            "c": {"type": "array", "items": {"$ref": "#"}},
         },
         "required": ["a", "b", "c"],
     }
@@ -349,8 +349,8 @@ def test_get_schema_enum():
         "type": "object",
         "title": "DcEnum",
         "properties": {
-            "a": {"allOf": [{"$ref": "#/$defs/MyEnum"}]},
-            "b": {"allOf": [{"$ref": "#/$defs/MyEnum"}], "default": 1},
+            "a": {"$ref": "#/$defs/MyEnum"},
+            "b": {"$ref": "#/$defs/MyEnum", "default": 1},
         },
         "required": ["a"],
         "$defs": {"MyEnum": {"title": "MyEnum", "enum": [1, 2]}},
@@ -516,11 +516,11 @@ def test_get_schema_annotation():
             },
             "books": {
                 "type": "array",
-                "items": {"allOf": [{"$ref": "#/$defs/DcAnnotatedBook"}]},
+                "items": {"$ref": "#/$defs/DcAnnotatedBook"},
                 "description": "all the books the author has written",
             },
             "hobby": {
-                "allOf": [{"$ref": "#/$defs/DcAnnotatedAuthorHobby"}],
+                "$ref": "#/$defs/DcAnnotatedAuthorHobby",
                 "deprecated": True,
             },
             "age": {
@@ -576,12 +576,12 @@ def test_get_schema_config():
         "title": "root model",
         "properties": {
             "a": {"type": "string"},
-            "child_1": {"allOf": [{"$ref": "#/$defs/DcSchemaConfigChild"}]},
+            "child_1": {"$ref": "#/$defs/DcSchemaConfigChild"},
             "child_2": {
-                "allOf": [{"$ref": "#/$defs/DcSchemaConfigChild"}],
+                "$ref": "#/$defs/DcSchemaConfigChild",
                 "title": "2nd child",
             },
-            "friend": {"allOf": [{"$ref": "#"}], "title": "a friend"},
+            "friend": {"$ref": "#", "title": "a friend"},
         },
         "required": ["a", "child_1", "child_2", "friend"],
         "$defs": {
