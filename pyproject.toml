@@ -1,27 +1,33 @@
-[tool.poetry]
+[build-system]
+requires = ["flit_core>=3.9,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
 name = "dc_schema"
 version = "0.0.8"
 description = "Generate JSON schema from python dataclasses"
-authors = ["Peter Byfield <byfield554@gmail.com>"]
-license = "MIT"
+authors = [
+    { name = "Peter Byfield", email = "byfield554@gmail.com" },
+]
+maintainers = [
+    { name = "Frederik Schumacher" },
+]
 readme = "README.md"
-homepage = "https://github.com/Peter554/dc_schema"
-repository = "https://github.com/Peter554/dc_schema"
+license = { file = "LICENSE" }
+requires-python = ">=3.12,<3.13"
 
-[tool.poetry.dependencies]
-python = "^3.9"
+[project.optional-dependencies]
+test = ["pytest>=8", "jsonschema>=4"]
+dev = ["black>=24"]
 
-[tool.poetry.dev-dependencies]
-pytest = "^7.1.1"
-black = "^22.3.0"
-jsonschema = "^4.4.0"
-mypy = "^0.942"
-types-jsonschema = "^4.4.4"
-pytest-cov = "^3.0.0"
+[project.scripts]
+dc_schema = "dc_schema.cli:main"
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[project.urls]
+Repository = "https://github.com/fre-sch/dc_schema"
 
-[tool.poetry.scripts]
-dc_schema = 'dc_schema.cli:main'
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 80

@@ -6,7 +6,6 @@ import dataclasses
 import numbers
 import typing as t
 
-
 _MISSING = dataclasses.MISSING
 
 
@@ -104,7 +103,9 @@ class _GetSchema:
 
     def create_dc_schema(self, dc):
         if hasattr(dc, "SchemaConfig"):
-            annotation = getattr(dc.SchemaConfig, "annotation", SchemaAnnotation())
+            annotation = getattr(
+                dc.SchemaConfig, "annotation", SchemaAnnotation()
+            )
         else:
             annotation = SchemaAnnotation()
         schema = {
@@ -121,7 +122,8 @@ class _GetSchema:
                 type_, field.default, SchemaAnnotation()
             )
             field_is_optional = (
-                field.default is not _MISSING or field.default_factory is not _MISSING
+                field.default is not _MISSING
+                or field.default_factory is not _MISSING
             )
             if not field_is_optional:
                 schema["required"].append(field.name)
@@ -214,7 +216,9 @@ class _GetSchema:
         if args:
             return {
                 "type": "array",
-                "items": self.get_field_schema(args[0], _MISSING, SchemaAnnotation()),
+                "items": self.get_field_schema(
+                    args[0], _MISSING, SchemaAnnotation()
+                ),
                 **annotation.schema(),
             }
         else:
@@ -229,7 +233,9 @@ class _GetSchema:
         if args and len(args) == 2 and args[1] is ...:
             schema = {
                 "type": "array",
-                "items": self.get_field_schema(args[0], _MISSING, SchemaAnnotation()),
+                "items": self.get_field_schema(
+                    args[0], _MISSING, SchemaAnnotation()
+                ),
                 **schema,
             }
         elif args:
@@ -253,7 +259,9 @@ class _GetSchema:
         if args:
             return {
                 "type": "array",
-                "items": self.get_field_schema(args[0], _MISSING, SchemaAnnotation()),
+                "items": self.get_field_schema(
+                    args[0], _MISSING, SchemaAnnotation()
+                ),
                 "uniqueItems": True,
                 **annotation.schema(),
             }
@@ -276,13 +284,21 @@ class _GetSchema:
         if default is _MISSING:
             return {"type": "boolean", **annotation.schema()}
         else:
-            return {"type": "boolean", "default": default, **annotation.schema()}
+            return {
+                "type": "boolean",
+                "default": default,
+                **annotation.schema(),
+            }
 
     def get_int_schema(self, default, annotation):
         if default is _MISSING:
             return {"type": "integer", **annotation.schema()}
         else:
-            return {"type": "integer", "default": default, **annotation.schema()}
+            return {
+                "type": "integer",
+                "default": default,
+                **annotation.schema(),
+            }
 
     def get_number_schema(self, default, annotation):
 

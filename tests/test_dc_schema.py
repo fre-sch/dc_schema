@@ -92,7 +92,9 @@ def test_get_schema_union():
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "title": "DcUnion",
-        "properties": {"a": {"anyOf": [{"type": "integer"}, {"type": "string"}]}},
+        "properties": {
+            "a": {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+        },
         "required": ["a"],
     }
 
@@ -137,7 +139,10 @@ def test_get_schema_dict():
         "title": "DcDict",
         "properties": {
             "a": {"type": "object"},
-            "b": {"type": "object", "additionalProperties": {"type": "integer"}},
+            "b": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
+            },
         },
         "required": ["a", "b"],
     }
@@ -326,7 +331,11 @@ def test_get_schema_set():
         "title": "DcSet",
         "properties": {
             "a": {"type": "array", "uniqueItems": True},
-            "b": {"type": "array", "items": {"type": "integer"}, "uniqueItems": True},
+            "b": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "uniqueItems": True,
+            },
         },
         "required": ["a", "b"],
     }
@@ -335,9 +344,9 @@ def test_get_schema_set():
 @dataclasses.dataclass
 class DcStrAnnotated:
     a: t.Annotated[str, SchemaAnnotation(min_length=3, max_length=5)]
-    b: t.Annotated[
-        str, SchemaAnnotation(format="date", pattern=r"^\d.*")
-    ] = "2000-01-01"
+    b: t.Annotated[str, SchemaAnnotation(format="date", pattern=r"^\d.*")] = (
+        "2000-01-01"
+    )
 
 
 def test_get_schema_str_annotation():
@@ -382,7 +391,9 @@ def test_get_schema_number_annotation():
         "properties": {
             "a": {"type": "integer", "minimum": 1, "exclusiveMaximum": 11},
             "b": {"type": "array", "items": {"type": "integer", "minimum": 0}},
-            "c": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
+            "c": {
+                "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]
+            },
             "d": {
                 "type": "number",
                 "default": 33.1,
@@ -439,7 +450,9 @@ class DcAnnotatedAuthor:
         list[DcAnnotatedBook],
         SchemaAnnotation(description="all the books the author has written"),
     ]
-    hobby: t.Annotated[DcAnnotatedAuthorHobby, SchemaAnnotation(deprecated=True)]
+    hobby: t.Annotated[
+        DcAnnotatedAuthorHobby, SchemaAnnotation(deprecated=True)
+    ]
     age: t.Annotated[
         t.Union[int, float], SchemaAnnotation(description="age in years")
     ] = 42
@@ -502,7 +515,9 @@ class DcSchemaConfigChild:
 class DcSchemaConfig:
     a: str
     child_1: DcSchemaConfigChild
-    child_2: t.Annotated[DcSchemaConfigChild, SchemaAnnotation(title="2nd child")]
+    child_2: t.Annotated[
+        DcSchemaConfigChild, SchemaAnnotation(title="2nd child")
+    ]
     friend: t.Annotated[DcSchemaConfig, SchemaAnnotation(title="a friend")]
 
     class SchemaConfig:
@@ -543,7 +558,9 @@ class DcListAnnotation:
     a: t.Annotated[
         list[int], SchemaAnnotation(min_items=3, max_items=5, unique_items=True)
     ]
-    b: t.Annotated[tuple[float, ...], SchemaAnnotation(min_items=3, max_items=10)] = ()
+    b: t.Annotated[
+        tuple[float, ...], SchemaAnnotation(min_items=3, max_items=10)
+    ] = ()
 
 
 def test_get_schema_list_annotation():
