@@ -150,7 +150,7 @@ class _GetSchema:
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
         if type_ is t.Any:
-            return self.get_any_schema(annotation)
+            return self.get_any_schema(default, annotation)
         if type_ is object:
             raise TypeError(
                 "bare `object` is ambiguous for JSON Schema: use `typing.Any` "
@@ -300,9 +300,11 @@ class _GetSchema:
         else:
             return {"type": "array", "uniqueItems": True, **annotation.schema()}
 
-    def get_any_schema(self, annotation):
+    def get_any_schema(self, default, annotation):
         # `typing.Any`: an empty schema accepts any JSON value.
-        return {**annotation.schema()}
+        if default is _MISSING:
+            return {**annotation.schema()}
+        return {"default": default, **annotation.schema()}
 
     def get_none_schema(self, default, annotation):
         if default is _MISSING:
