@@ -413,6 +413,21 @@ def test_get_schema_str_annotation():
 
 
 @dataclasses.dataclass
+class DcCustomFormat:
+    a: t.Annotated[str, SchemaAnnotation(format="uri-template")]
+
+
+def test_get_schema_custom_format_passthrough():
+    # `format` is open: a non-standard value passes straight through.
+    schema = get_schema(DcCustomFormat)
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["a"] == {
+        "type": "string",
+        "format": "uri-template",
+    }
+
+
+@dataclasses.dataclass
 class DcNumberAnnotated:
     a: t.Annotated[int, SchemaAnnotation(minimum=1, exclusive_maximum=11)]
     b: list[t.Annotated[int, SchemaAnnotation(minimum=0)]]

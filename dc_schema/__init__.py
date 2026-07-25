@@ -46,7 +46,10 @@ class SchemaAnnotation:
     min_length: t.Optional[int] = None
     max_length: t.Optional[int] = None
     pattern: t.Optional[str] = None
-    format: t.Optional[_Format] = None
+    # Any string: `format` is an open, annotation-only keyword in 2020-12, so
+    # custom/unimplemented values (e.g. "uri-template", "byte") pass through.
+    # `_Format` lists the standard values for reference.
+    format: t.Optional[str] = None
     minimum: t.Optional[numbers.Number] = None
     maximum: t.Optional[numbers.Number] = None
     exclusive_minimum: t.Optional[numbers.Number] = None
