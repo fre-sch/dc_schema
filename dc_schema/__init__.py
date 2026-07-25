@@ -39,6 +39,13 @@ class SchemaAnnotation:
     # name a field takes in its dataclass's `properties` (and `required`). It is
     # excluded from `schema()` so it never leaks into the field's schema body.
     name: t.Optional[str] = None
+    # `additional_properties` closes (or shapes) an object body: `False` forbids
+    # extra properties, `True` allows any, and a type generates a subschema each
+    # extra property must validate against (2020-12's `additionalProperties`
+    # takes a schema, not just a boolean). It is a body concern, so it is
+    # excluded from `schema()` and consumed by `create_dc_schema`, never emitted
+    # as a `$ref` sibling. Set it via a dataclass's `SchemaConfig.annotation`.
+    additional_properties: t.Union[bool, type, None] = None
     title: t.Optional[str] = None
     description: t.Optional[str] = None
     examples: t.Optional[list[t.Any]] = None
@@ -70,10 +77,11 @@ class SchemaAnnotation:
             "max_items": "maxItems",
             "unique_items": "uniqueItems",
         }
+        directives = ("name", "additional_properties")
         return {
             key_map.get(k, k): v
             for k, v in dataclasses.asdict(self).items()
-            if v is not None and k != "name"
+            if v is not None and k not in directives
         }
 
 
@@ -137,7 +145,20 @@ class _GetSchema:
                 schema["required"].append(name)
         if not schema["required"]:
             schema.pop("required")
+        if annotation.additional_properties is not None:
+            schema["additionalProperties"] = self.additional_properties_schema(
+                annotation.additional_properties
+            )
         return schema
+
+    def additional_properties_schema(self, additional_properties):
+        # `True`/`False` are literal schemas; a type generates the subschema
+        # that every extra property must validate against.
+        if isinstance(additional_properties, bool):
+            return additional_properties
+        return self.get_field_schema(
+            additional_properties, _MISSING, SchemaAnnotation()
+        )
 
     def property_name(self, name, type_):
         # A field may alias its property name via SchemaAnnotation(name=...) in
