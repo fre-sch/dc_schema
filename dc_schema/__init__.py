@@ -135,6 +135,8 @@ class _GetSchema:
     def get_field_schema(self, type_, default, annotation):
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
+        if type_ is object or type_ is t.Any:
+            return self.get_any_schema(annotation)
         if t.get_origin(type_) in (t.Union, types.UnionType):
             return self.get_union_schema(type_, default, annotation)
         if t.get_origin(type_) == t.Literal:
@@ -268,6 +270,10 @@ class _GetSchema:
             }
         else:
             return {"type": "array", "uniqueItems": True, **annotation.schema()}
+
+    def get_any_schema(self, annotation):
+        # An empty schema accepts any JSON value.
+        return {**annotation.schema()}
 
     def get_none_schema(self, default, annotation):
         if default is _MISSING:
