@@ -35,6 +35,10 @@ _Format = t.Literal[
 
 @dataclasses.dataclass(frozen=True)
 class SchemaAnnotation:
+    # `name` is a directive, not a schema keyword: it overrides the property
+    # name a field takes in its dataclass's `properties` (and `required`). It is
+    # excluded from `schema()` so it never leaks into the field's schema body.
+    name: t.Optional[str] = None
     title: t.Optional[str] = None
     description: t.Optional[str] = None
     examples: t.Optional[list[t.Any]] = None
@@ -66,7 +70,7 @@ class SchemaAnnotation:
         return {
             key_map.get(k, k): v
             for k, v in dataclasses.asdict(self).items()
-            if v is not None
+            if v is not None and k != "name"
         }
 
 
@@ -119,7 +123,8 @@ class _GetSchema:
         type_hints = t.get_type_hints(dc, include_extras=True)
         for field in dataclasses.fields(dc):
             type_ = type_hints[field.name]
-            schema["properties"][field.name] = self.get_field_schema(
+            name = self.property_name(field.name, type_)
+            schema["properties"][name] = self.get_field_schema(
                 type_, field.default, SchemaAnnotation()
             )
             field_is_optional = (
@@ -127,10 +132,19 @@ class _GetSchema:
                 or field.default_factory is not _MISSING
             )
             if not field_is_optional:
-                schema["required"].append(field.name)
+                schema["required"].append(name)
         if not schema["required"]:
             schema.pop("required")
         return schema
+
+    def property_name(self, name, type_):
+        # A field may alias its property name via SchemaAnnotation(name=...) in
+        # its Annotated metadata; otherwise the field name is used verbatim.
+        if t.get_origin(type_) is t.Annotated:
+            meta = t.get_args(type_)[1]
+            if isinstance(meta, SchemaAnnotation) and meta.name is not None:
+                return meta.name
+        return name
 
     def get_field_schema(self, type_, default, annotation):
         if dataclasses.is_dataclass(type_):
