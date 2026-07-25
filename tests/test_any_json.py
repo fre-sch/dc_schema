@@ -1,14 +1,15 @@
-"""any-JSON support: `object` / `typing.Any` map to `{}` (accept any value)."""
+"""any-JSON support: `typing.Any` maps to `{}` (accept any value).
+
+Bare `object` is rejected as ambiguous -- authors pick `typing.Any` (any value)
+or `dict` (a JSON object). See wiki decision any-vs-object-schema-mapping.
+"""
 
 import dataclasses
 import typing
 
+import pytest
+
 from dc_schema import get_schema
-
-
-@dataclasses.dataclass
-class WithObject:
-    x: object
 
 
 @dataclasses.dataclass
@@ -17,22 +18,29 @@ class WithAny:
 
 
 @dataclasses.dataclass
-class WithObjectOrNone:
-    x: object | None
+class WithAnyOrNone:
+    x: typing.Any | None
+
+
+@dataclasses.dataclass
+class WithObject:
+    x: object
 
 
 def prop(dc):
     return get_schema(dc)["properties"]["x"]
 
 
-def test_object_accepts_any():
-    assert prop(WithObject) == {}
-
-
 def test_typing_any_accepts_any():
     assert prop(WithAny) == {}
 
 
-def test_object_or_none_is_anyof():
-    # object -> {} (any), None -> null; requires PEP 604 union support too.
-    assert prop(WithObjectOrNone) == {"anyOf": [{}, {"type": "null"}]}
+def test_any_or_none_arm_is_empty_schema():
+    # The `Any` arm emits `{}`; the union still resolves. (`Any` already admits
+    # None, so this union is redundant in practice, but must not error.)
+    assert prop(WithAnyOrNone) == {"anyOf": [{}, {"type": "null"}]}
+
+
+def test_bare_object_is_rejected():
+    with pytest.raises(TypeError, match="ambiguous"):
+        get_schema(WithObject)
