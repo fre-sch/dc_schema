@@ -4,6 +4,7 @@ import datetime
 import enum
 import dataclasses
 import numbers
+import types
 import typing as t
 
 _MISSING = dataclasses.MISSING
@@ -134,7 +135,7 @@ class _GetSchema:
     def get_field_schema(self, type_, default, annotation):
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
-        if t.get_origin(type_) == t.Union:
+        if t.get_origin(type_) in (t.Union, types.UnionType):
             return self.get_union_schema(type_, default, annotation)
         if t.get_origin(type_) == t.Literal:
             return self.get_literal_schema(type_, default, annotation)
