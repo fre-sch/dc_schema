@@ -1,7 +1,7 @@
 """any-JSON support: `typing.Any` maps to `{}` (accept any value).
 
 Bare `object` is rejected as ambiguous -- authors pick `typing.Any` (any value)
-or `dict` (a JSON object). See wiki decision any-vs-object-schema-mapping.
+or `dict` (a JSON object).
 """
 
 import dataclasses

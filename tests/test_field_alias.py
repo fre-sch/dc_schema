@@ -2,7 +2,7 @@
 
 A field keeps its (snake_case) Python name but takes the alias as its property
 name in `properties`/`required`. The alias is a directive, never a keyword in
-the field's schema body. See wiki decision mcp-type-modeling.
+the field's schema body.
 """
 
 import dataclasses

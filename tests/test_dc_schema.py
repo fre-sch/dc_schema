@@ -138,7 +138,7 @@ class DcNullableCollapse:
 
 def test_get_schema_nullable_collapse():
     """`X | None` collapses to a `type` array only when nothing else needs a
-    home; otherwise it stays an anyOf (see wiki nullable-union-type-array)."""
+    home; otherwise it stays an anyOf."""
     schema = get_schema(DcNullableCollapse)
     print(schema)
     Draft202012Validator.check_schema(schema)

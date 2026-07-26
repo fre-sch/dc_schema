@@ -54,8 +54,7 @@ def test_pep604_optional_matches_typing_optional():
 
 
 def test_pep604_optional_includes_null():
-    # A single concrete type + None collapses to a `type` array
-    # (see wiki nullable-union-type-array).
+    # A single concrete type + None collapses to a `type` array.
     assert prop(Pep604Optional) == {"type": ["string", "null"]}
 
 
