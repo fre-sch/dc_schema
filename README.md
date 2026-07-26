@@ -1,22 +1,23 @@
 # dc_schema
 
-[![CI](https://github.com/Peter554/dc_schema/actions/workflows/ci.yaml/badge.svg)](https://github.com/Peter554/dc_schema/actions/workflows/ci.yaml)
-[![codecov](https://codecov.io/gh/Peter554/dc_schema/branch/master/graph/badge.svg?token=YLT3N0HWO9)](https://codecov.io/gh/Peter554/dc_schema)
-
-Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from python 
+Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from python
 [dataclasses](https://docs.python.org/3/library/dataclasses.html). No other dependencies, standard library only.
 
 ```
-pip install dc-schema 
+pip install dc-schema
 ```
 
 ## Assumptions
 
-* python 3.9+ 
+* python 3.12+
 
 ## Motivation
 
-Create a lightweight, focused solution to generate JSON schema from plain dataclasses. [pydantic](https://pydantic-docs.helpmanual.io/) is a much more mature option, however it also does a lot of other things I didn't want to include here. Deepen my understanding of python dataclasses, typing and JSON schema.
+Create a lightweight, focused solution to generate JSON schema from plain
+dataclasses. [pydantic](https://pydantic-docs.helpmanual.io/) is a much more
+mature option, however it also does a lot of other things I didn't want to
+include here. Deepen my understanding of python dataclasses, typing and JSON
+schema.
 
 ## Usage
 
@@ -102,9 +103,11 @@ print(json.dumps(get_schema(Author), indent=2))
 
 ### Annotations
 
-You can use [typing.Annotated](https://docs.python.org/3/library/typing.html#typing.Annotated) + `SchemaAnnotation` to attach
-metadata to the schema, such as field descriptions, examples, validation (min/max length, regex pattern, ...), etc. 
-Consult [the code](https://github.com/Peter554/dc_schema/blob/master/dc_schema/__init__.py) for full details.
+You can use [typing.Annotated](https://docs.python.org/3/library/typing.html#typing.Annotated) + `SchemaAnnotation`
+to attach metadata to the schema, such as field descriptions, examples,
+validation (min/max length, regex pattern, ...), etc. Consult
+[the code](https://github.com/Peter554/dc_schema/blob/master/dc_schema/__init__.py)
+for full details.
 
 ```py
 import dataclasses
@@ -116,9 +119,15 @@ from dc_schema import get_schema, SchemaAnnotation
 
 @dataclasses.dataclass
 class Author:
-    name: t.Annotated[str, SchemaAnnotation(title="Full name", description="The authors full name")]
+    name: t.Annotated[
+        str,
+        SchemaAnnotation(title="Full name", description="The authors full name")
+    ]
     age: t.Annotated[int, SchemaAnnotation(minimum=0)]
-    dob: t.Annotated[t.Optional[datetime.date], SchemaAnnotation(examples=["1990-01-17"])] = None
+    dob: t.Annotated[
+        t.Optional[datetime.date],
+        SchemaAnnotation(examples=["1990-01-17"])
+    ] = None
 
 print(json.dumps(get_schema(Author), indent=2))
 ```
@@ -174,7 +183,10 @@ class User:
     name: str
 
     class SchemaConfig:
-        annotation = SchemaAnnotation(title="System user", description="A user of the system")
+        annotation = SchemaAnnotation(
+            title="System user",
+            description="A user of the system"
+        )
 
 print(json.dumps(get_schema(User), indent=2))
 ```
@@ -198,7 +210,8 @@ print(json.dumps(get_schema(User), indent=2))
 
 ### Further examples
 
-See the [tests](https://github.com/Peter554/dc_schema/blob/master/tests/test_dc_schema.py) for full example usage.
+See the [tests](https://github.com/Peter554/dc_schema/blob/master/tests/test_dc_schema.py)
+for full example usage.
 
 ## CLI
 
@@ -218,4 +231,4 @@ For working with dataclasses or JSON schema:
 
 * https://github.com/konradhalas/dacite - create data classes from dictionaries.
 * https://python-jsonschema.readthedocs.io/en/stable/ - validate an object against a JSON schema.
-* https://json-schema.org/understanding-json-schema/index.html - nice reference for understanding JSON schema. 
+* https://json-schema.org/understanding-json-schema/index.html - nice reference for understanding JSON schema.
