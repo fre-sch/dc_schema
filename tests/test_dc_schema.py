@@ -92,7 +92,9 @@ def test_get_schema_union():
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "title": "DcUnion",
-        "properties": {"a": {"anyOf": [{"type": "integer"}, {"type": "string"}]}},
+        "properties": {
+            "a": {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+        },
         "required": ["a"],
     }
 
@@ -114,10 +116,52 @@ def test_get_schema_nullable():
         "title": "DcNone",
         "properties": {
             "a": {"type": "null"},
-            "b": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
-            "c": {"anyOf": [{"type": "null"}, {"type": "integer"}]},
+            # a single concrete type + None collapses to a `type` array;
+            # `c` also shows the null arm normalised to last, concrete first.
+            "b": {"type": ["integer", "null"]},
+            "c": {"type": ["integer", "null"]},
         },
         "required": ["a", "b", "c"],
+    }
+
+
+@dataclasses.dataclass
+class DcNullableCollapse:
+    a: int | None  # bare concrete + None -> type array
+    b: t.Optional[str]  # Optional spelling, same collapse
+    c: int | str | None  # >1 concrete arm -> anyOf
+    d: t.Optional[datetime.datetime]  # arm carries `format` -> anyOf
+    e: t.Annotated[  # annotated field -> anyOf
+        t.Optional[int], SchemaAnnotation(description="id")
+    ]
+
+
+def test_get_schema_nullable_collapse():
+    """`X | None` collapses to a `type` array only when nothing else needs a
+    home; otherwise it stays an anyOf."""
+    schema = get_schema(DcNullableCollapse)
+    print(schema)
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"] == {
+        "a": {"type": ["integer", "null"]},
+        "b": {"type": ["string", "null"]},
+        "c": {
+            "anyOf": [
+                {"type": "integer"},
+                {"type": "string"},
+                {"type": "null"},
+            ]
+        },
+        "d": {
+            "anyOf": [
+                {"type": "string", "format": "date-time"},
+                {"type": "null"},
+            ]
+        },
+        "e": {
+            "anyOf": [{"type": "integer"}, {"type": "null"}],
+            "description": "id",
+        },
     }
 
 
@@ -137,7 +181,10 @@ def test_get_schema_dict():
         "title": "DcDict",
         "properties": {
             "a": {"type": "object"},
-            "b": {"type": "object", "additionalProperties": {"type": "integer"}},
+            "b": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
+            },
         },
         "required": ["a", "b"],
     }
@@ -218,10 +265,10 @@ def test_get_schema_refs():
         "type": "object",
         "title": "DcRefs",
         "properties": {
-            "a": {"allOf": [{"$ref": "#/$defs/DcRefsChild"}]},
+            "a": {"$ref": "#/$defs/DcRefsChild"},
             "b": {
                 "type": "array",
-                "items": {"allOf": [{"$ref": "#/$defs/DcRefsChild"}]},
+                "items": {"$ref": "#/$defs/DcRefsChild"},
             },
         },
         "required": ["a", "b"],
@@ -253,8 +300,8 @@ def test_get_schema_self_refs():
         "title": "DcRefsSelf",
         "properties": {
             "a": {"type": "string"},
-            "b": {"anyOf": [{"allOf": [{"$ref": "#"}]}, {"type": "null"}]},
-            "c": {"type": "array", "items": {"allOf": [{"$ref": "#"}]}},
+            "b": {"anyOf": [{"$ref": "#"}, {"type": "null"}]},
+            "c": {"type": "array", "items": {"$ref": "#"}},
         },
         "required": ["a", "b", "c"],
     }
@@ -302,8 +349,8 @@ def test_get_schema_enum():
         "type": "object",
         "title": "DcEnum",
         "properties": {
-            "a": {"allOf": [{"$ref": "#/$defs/MyEnum"}]},
-            "b": {"allOf": [{"$ref": "#/$defs/MyEnum"}], "default": 1},
+            "a": {"$ref": "#/$defs/MyEnum"},
+            "b": {"$ref": "#/$defs/MyEnum", "default": 1},
         },
         "required": ["a"],
         "$defs": {"MyEnum": {"title": "MyEnum", "enum": [1, 2]}},
@@ -326,7 +373,11 @@ def test_get_schema_set():
         "title": "DcSet",
         "properties": {
             "a": {"type": "array", "uniqueItems": True},
-            "b": {"type": "array", "items": {"type": "integer"}, "uniqueItems": True},
+            "b": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "uniqueItems": True,
+            },
         },
         "required": ["a", "b"],
     }
@@ -335,9 +386,9 @@ def test_get_schema_set():
 @dataclasses.dataclass
 class DcStrAnnotated:
     a: t.Annotated[str, SchemaAnnotation(min_length=3, max_length=5)]
-    b: t.Annotated[
-        str, SchemaAnnotation(format="date", pattern=r"^\d.*")
-    ] = "2000-01-01"
+    b: t.Annotated[str, SchemaAnnotation(format="date", pattern=r"^\d.*")] = (
+        "2000-01-01"
+    )
 
 
 def test_get_schema_str_annotation():
@@ -362,6 +413,21 @@ def test_get_schema_str_annotation():
 
 
 @dataclasses.dataclass
+class DcCustomFormat:
+    a: t.Annotated[str, SchemaAnnotation(format="uri-template")]
+
+
+def test_get_schema_custom_format_passthrough():
+    # `format` is open: a non-standard value passes straight through.
+    schema = get_schema(DcCustomFormat)
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["a"] == {
+        "type": "string",
+        "format": "uri-template",
+    }
+
+
+@dataclasses.dataclass
 class DcNumberAnnotated:
     a: t.Annotated[int, SchemaAnnotation(minimum=1, exclusive_maximum=11)]
     b: list[t.Annotated[int, SchemaAnnotation(minimum=0)]]
@@ -382,7 +448,9 @@ def test_get_schema_number_annotation():
         "properties": {
             "a": {"type": "integer", "minimum": 1, "exclusiveMaximum": 11},
             "b": {"type": "array", "items": {"type": "integer", "minimum": 0}},
-            "c": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
+            "c": {
+                "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]
+            },
             "d": {
                 "type": "number",
                 "default": 33.1,
@@ -439,7 +507,9 @@ class DcAnnotatedAuthor:
         list[DcAnnotatedBook],
         SchemaAnnotation(description="all the books the author has written"),
     ]
-    hobby: t.Annotated[DcAnnotatedAuthorHobby, SchemaAnnotation(deprecated=True)]
+    hobby: t.Annotated[
+        DcAnnotatedAuthorHobby, SchemaAnnotation(deprecated=True)
+    ]
     age: t.Annotated[
         t.Union[int, float], SchemaAnnotation(description="age in years")
     ] = 42
@@ -461,11 +531,11 @@ def test_get_schema_annotation():
             },
             "books": {
                 "type": "array",
-                "items": {"allOf": [{"$ref": "#/$defs/DcAnnotatedBook"}]},
+                "items": {"$ref": "#/$defs/DcAnnotatedBook"},
                 "description": "all the books the author has written",
             },
             "hobby": {
-                "allOf": [{"$ref": "#/$defs/DcAnnotatedAuthorHobby"}],
+                "$ref": "#/$defs/DcAnnotatedAuthorHobby",
                 "deprecated": True,
             },
             "age": {
@@ -502,7 +572,9 @@ class DcSchemaConfigChild:
 class DcSchemaConfig:
     a: str
     child_1: DcSchemaConfigChild
-    child_2: t.Annotated[DcSchemaConfigChild, SchemaAnnotation(title="2nd child")]
+    child_2: t.Annotated[
+        DcSchemaConfigChild, SchemaAnnotation(title="2nd child")
+    ]
     friend: t.Annotated[DcSchemaConfig, SchemaAnnotation(title="a friend")]
 
     class SchemaConfig:
@@ -519,12 +591,12 @@ def test_get_schema_config():
         "title": "root model",
         "properties": {
             "a": {"type": "string"},
-            "child_1": {"allOf": [{"$ref": "#/$defs/DcSchemaConfigChild"}]},
+            "child_1": {"$ref": "#/$defs/DcSchemaConfigChild"},
             "child_2": {
-                "allOf": [{"$ref": "#/$defs/DcSchemaConfigChild"}],
+                "$ref": "#/$defs/DcSchemaConfigChild",
                 "title": "2nd child",
             },
-            "friend": {"allOf": [{"$ref": "#"}], "title": "a friend"},
+            "friend": {"$ref": "#", "title": "a friend"},
         },
         "required": ["a", "child_1", "child_2", "friend"],
         "$defs": {
@@ -543,7 +615,9 @@ class DcListAnnotation:
     a: t.Annotated[
         list[int], SchemaAnnotation(min_items=3, max_items=5, unique_items=True)
     ]
-    b: t.Annotated[tuple[float, ...], SchemaAnnotation(min_items=3, max_items=10)] = ()
+    b: t.Annotated[
+        tuple[float, ...], SchemaAnnotation(min_items=3, max_items=10)
+    ] = ()
 
 
 def test_get_schema_list_annotation():
