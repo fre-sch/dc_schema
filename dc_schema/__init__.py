@@ -393,3 +393,115 @@ class _GetSchema:
 
     def get_date_schema(self, annotation):
         return {"type": "string", "format": "date", **annotation.schema()}
+
+
+# --- data serde -------------------------------------------------------------
+# The other direction of the dataclass<->JSON bridge: convert dataclass
+# instances to and from JSON-ready dicts, honouring the same
+# `SchemaAnnotation(name=...)` aliases the schema uses for property names. This
+# is generic -- no MCP knowledge -- and driven by the annotations defined above.
+
+
+def to_dict(instance: t.Any) -> t.Any:
+    """Render a dataclass (or a tree of them) as a JSON-ready value.
+
+    Each field is emitted under its `SchemaAnnotation(name=...)` alias (else the
+    field name), recursing into nested dataclasses, `list`/`tuple`, `dict`, and
+    `enum.Enum`; scalars pass through. `None`-valued fields are omitted -- an
+    absent key, never a literal `null`. The inverse is `from_dict`.
+    """
+    if dataclasses.is_dataclass(instance) and not isinstance(instance, type):
+        return _dataclass_to_dict(instance)
+    if isinstance(instance, (list, tuple)):
+        return [to_dict(item) for item in instance]
+    if isinstance(instance, dict):
+        return {key: to_dict(value) for key, value in instance.items()}
+    if isinstance(instance, enum.Enum):
+        return instance.value
+    return instance
+
+
+def _dataclass_to_dict(instance):
+    hints = t.get_type_hints(type(instance), include_extras=True)
+    result = {}
+    for field in dataclasses.fields(instance):
+        value = getattr(instance, field.name)
+        if value is None:  # optional -> omitted, never a literal null
+            continue
+        result[_alias(field.name, hints[field.name])] = to_dict(value)
+    return result
+
+
+def _alias(name, hint):
+    # A field aliases its serialised name via SchemaAnnotation(name=...) in its
+    # Annotated metadata; otherwise the field name is used verbatim. (The schema
+    # side reads the same alias in `_GetSchema.property_name`.)
+    if t.get_origin(hint) is t.Annotated:
+        meta = t.get_args(hint)[1]
+        if isinstance(meta, SchemaAnnotation) and meta.name is not None:
+            return meta.name
+    return name
+
+
+def from_dict(cls: type, data: dict) -> t.Any:
+    """Reconstruct a `cls` dataclass instance from a JSON-ready dict.
+
+    The inverse of `to_dict`: each key is matched back to its field by the
+    field's `SchemaAnnotation(name=...)` alias (else the field name), and values
+    are reconstructed by field type (nested dataclasses, `list`s, `dict`s,
+    enums, `X | None`). An omitted key leaves the field's default. `from_dict`
+    trusts the shape of `data` -- it builds, it does not validate.
+    """
+    return _dataclass_from_dict(cls, data)
+
+
+def _dataclass_from_dict(cls, data):
+    hints = t.get_type_hints(cls, include_extras=True)
+    arguments = {}
+    for field in dataclasses.fields(cls):
+        alias = _alias(field.name, hints[field.name])
+        if alias in data:  # absent -> the field's default applies
+            arguments[field.name] = _value_from_dict(
+                hints[field.name], data[alias]
+            )
+    return cls(**arguments)
+
+
+def _value_from_dict(hint, value):
+    hint = _strip_annotated(hint)
+    if dataclasses.is_dataclass(hint) and isinstance(hint, type):
+        return _dataclass_from_dict(hint, value)
+    origin = t.get_origin(hint)
+    if origin is list:
+        args = t.get_args(hint)
+        item_hint = args[0] if args else t.Any
+        return [_value_from_dict(item_hint, item) for item in value]
+    if origin is dict:
+        args = t.get_args(hint)
+        value_hint = args[1] if args else t.Any
+        return {
+            key: _value_from_dict(value_hint, item)
+            for key, item in value.items()
+        }
+    if origin is t.Union or origin is types.UnionType:
+        return _union_from_dict(hint, value)
+    if isinstance(hint, type) and issubclass(hint, enum.Enum):
+        return hint(value)
+    return value
+
+
+def _union_from_dict(hint, value):
+    if value is None:
+        return None
+    concrete = [arm for arm in t.get_args(hint) if arm is not type(None)]
+    if len(concrete) == 1:  # `X | None` -> reconstruct as X
+        return _value_from_dict(concrete[0], value)
+    # Several concrete arms carry no discriminator to pick a target by; pass
+    # such values through untouched (the shape is trusted).
+    return value
+
+
+def _strip_annotated(hint):
+    if t.get_origin(hint) is t.Annotated:
+        return t.get_args(hint)[0]
+    return hint
