@@ -7,6 +7,8 @@ import dataclasses
 import enum
 import typing
 
+import pytest
+
 import dc_schema
 
 
@@ -101,3 +103,52 @@ def test_from_dict_reconstructs_dict_of_dataclasses():
 
     atlas = dc_schema.from_dict(Atlas, {"points": {"a": {"x": 1.0, "y": 2.0}}})
     assert atlas.points == {"a": Point(1.0, 2.0)}
+
+
+def test_to_dict_by_alias_false_uses_raw_field_names():
+    shape = Shape(stroke_color=Color.RED, origin=Point(0.0, 0.0), vertices=[])
+    # the aliased field falls back to its Python name; nesting is unaffected.
+    assert dc_schema.to_dict(shape, by_alias=False) == {
+        "stroke_color": "red",
+        "origin": {"x": 0.0, "y": 0.0},
+        "vertices": [],
+    }
+
+
+def test_from_dict_by_alias_false_matches_raw_field_names():
+    shape = dc_schema.from_dict(
+        Shape,
+        {
+            "stroke_color": "blue",
+            "origin": {"x": 1.0, "y": 1.0},
+            "vertices": [{"x": 2.0, "y": 2.0}],
+        },
+        by_alias=False,
+    )
+    assert shape.stroke_color is Color.BLUE
+    assert shape.origin == Point(1.0, 1.0)
+    assert shape.vertices == [Point(2.0, 2.0)]
+    # the aliased key is ignored under by_alias=False: `stroke_color` is
+    # required, so supplying only `strokeColor` leaves it unfilled.
+    with pytest.raises(TypeError):
+        dc_schema.from_dict(
+            Shape,
+            {
+                "strokeColor": "red",
+                "origin": {"x": 0.0, "y": 0.0},
+                "vertices": [],
+            },
+            by_alias=False,
+        )
+
+
+def test_by_alias_false_round_trips():
+    original = Shape(
+        stroke_color=Color.BLUE,
+        origin=Point(x=-1.0, y=2.5),
+        vertices=[Point(x=1.0, y=1.0)],
+        label="quad",
+    )
+    raw = dc_schema.to_dict(original, by_alias=False)
+    assert "stroke_color" in raw and "strokeColor" not in raw
+    assert dc_schema.from_dict(Shape, raw, by_alias=False) == original
