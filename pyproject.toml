@@ -8,6 +8,7 @@ version = "0.0.8"
 description = "Generate JSON schema from python dataclasses"
 authors = [
     { name = "Peter Byfield", email = "byfield554@gmail.com" },
+    { name = "Frederik Schumacher" },
 ]
 maintainers = [
     { name = "Frederik Schumacher" },

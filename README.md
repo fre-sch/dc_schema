@@ -3,8 +3,11 @@
 Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from python
 [dataclasses](https://docs.python.org/3/library/dataclasses.html). No other dependencies, standard library only.
 
+> [!NOTE]
+> Fork of [Peter554/dc_schema](https://github.com/Peter554/dc_schema)
+
 ```
-pip install dc-schema
+pip install pip@git+https://github.com/fre-sch/dc_schema
 ```
 
 ## Assumptions
@@ -15,9 +18,8 @@ pip install dc-schema
 
 Create a lightweight, focused solution to generate JSON schema from plain
 dataclasses. [pydantic](https://pydantic-docs.helpmanual.io/) is a much more
-mature option, however it also does a lot of other things I didn't want to
-include here. Deepen my understanding of python dataclasses, typing and JSON
-schema.
+mature option, however it also does a lot of other things that aren't included
+here.
 
 ## Usage
 
