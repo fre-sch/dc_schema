@@ -403,9 +403,19 @@ class _GetSchema:
 # is generic -- no MCP knowledge -- and driven by the annotations defined above.
 
 
-def to_dict(instance: t.Any, *, by_alias: bool = True) -> t.Any:
-    """Render a dataclass (or a tree of them) as a JSON-ready value.
+@t.runtime_checkable
+class IsDataclass(t.Protocol):
+    # checking for this attribute is currently the most reliable way to
+    # ascertain that something is a dataclass
+    __dataclass_fields__: t.ClassVar[dict[str, t.Any]]
 
+
+def to_dict(
+    instance: IsDataclass, *, by_alias: bool = True
+) -> dict[str, t.Any]:
+    """Render a dataclass instance as a JSON-ready dict.
+
+    `instance` must be a dataclass instance (not a bare value or a class).
     Each field is emitted under its `SchemaAnnotation(alias=...)` alias (else the
     field name), recursing into nested dataclasses, `list`/`tuple`, `dict`, and
     `enum.Enum`; scalars pass through. `None`-valued fields are omitted -- an
@@ -415,18 +425,30 @@ def to_dict(instance: t.Any, *, by_alias: bool = True) -> t.Any:
     field names instead (e.g. to store with the Python names, aliasing only at
     the edges).
     """
-    if dataclasses.is_dataclass(instance) and not isinstance(instance, type):
-        return _dataclass_to_dict(instance, by_alias)
-    if isinstance(instance, (list, tuple)):
-        return [to_dict(item, by_alias=by_alias) for item in instance]
-    if isinstance(instance, dict):
+    # A dataclass *class* also satisfies is_dataclass; only an instance serialises.
+    if not dataclasses.is_dataclass(instance) or isinstance(instance, type):
+        raise TypeError(
+            f"expected an instance of a dataclass, received {type(instance)}"
+        )
+    return _dataclass_to_dict(instance, by_alias)
+
+
+def _to_value(value, by_alias):
+    # The interior of a dataclass being walked: the values a field may hold.
+    # This is a consequence of serialising dataclasses, not a public value
+    # serializer -- it stays private (dc_schema supports only what it exports).
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return _dataclass_to_dict(value, by_alias)
+    if isinstance(value, (list, tuple)):
+        return [_to_value(item, by_alias=by_alias) for item in value]
+    if isinstance(value, dict):
         return {
-            key: to_dict(value, by_alias=by_alias)
-            for key, value in instance.items()
+            key: _to_value(item, by_alias=by_alias)
+            for key, item in value.items()
         }
-    if isinstance(instance, enum.Enum):
-        return instance.value
-    return instance
+    if isinstance(value, enum.Enum):
+        return value.value
+    return value
 
 
 def _dataclass_to_dict(instance, by_alias):
@@ -437,7 +459,7 @@ def _dataclass_to_dict(instance, by_alias):
         if value is None:  # optional -> omitted, never a literal null
             continue
         key = _alias(field.name, hints[field.name], by_alias)
-        result[key] = to_dict(value, by_alias=by_alias)
+        result[key] = _to_value(value, by_alias=by_alias)
     return result
 
 

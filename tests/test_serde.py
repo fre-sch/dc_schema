@@ -142,6 +142,23 @@ def test_from_dict_by_alias_false_matches_raw_field_names():
         )
 
 
+def test_to_dict_recurses_into_dict_valued_field():
+    @dataclasses.dataclass
+    class Registry:
+        entries: dict
+
+    result = dc_schema.to_dict(Registry(entries={"a": Point(1.0, 2.0), "n": 3}))
+    # a dict field's values recurse: the nested dataclass renders, scalars stay.
+    assert result == {"entries": {"a": {"x": 1.0, "y": 2.0}, "n": 3}}
+
+
+def test_to_dict_rejects_non_dataclass_and_class():
+    with pytest.raises(TypeError):
+        dc_schema.to_dict({"x": 1})  # a bare dict is not a dataclass instance
+    with pytest.raises(TypeError):
+        dc_schema.to_dict(Point)  # a dataclass *class*, not an instance
+
+
 def test_by_alias_false_round_trips():
     original = Shape(
         stroke_color=Color.BLUE,
