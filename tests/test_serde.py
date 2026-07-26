@@ -25,7 +25,7 @@ class Point:
 class Shape:
     # an aliased field: serialises under `strokeColor`, not `stroke_color`.
     stroke_color: typing.Annotated[
-        Color, dc_schema.SchemaAnnotation(name="strokeColor")
+        Color, dc_schema.SchemaAnnotation(alias="strokeColor")
     ]
     origin: Point
     vertices: list[Point]

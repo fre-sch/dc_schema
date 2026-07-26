@@ -35,10 +35,11 @@ _Format = t.Literal[
 
 @dataclasses.dataclass(frozen=True)
 class SchemaAnnotation:
-    # `name` is a directive, not a schema keyword: it overrides the property
-    # name a field takes in its dataclass's `properties` (and `required`). It is
-    # excluded from `schema()` so it never leaks into the field's schema body.
-    name: t.Optional[str] = None
+    # `alias` is a directive, not a schema keyword: it overrides the property
+    # name a field takes in its dataclass's `properties` (and `required`), and
+    # the serialised key `to_dict`/`from_dict` use. It is excluded from
+    # `schema()` so it never leaks into the field's schema body.
+    alias: t.Optional[str] = None
     # `additional_properties` closes (or shapes) an object body: `False` forbids
     # extra properties, `True` allows any, and a type generates a subschema each
     # extra property must validate against (2020-12's `additionalProperties`
@@ -77,7 +78,7 @@ class SchemaAnnotation:
             "max_items": "maxItems",
             "unique_items": "uniqueItems",
         }
-        directives = ("name", "additional_properties")
+        directives = ("alias", "additional_properties")
         return {
             key_map.get(k, k): v
             for k, v in dataclasses.asdict(self).items()
@@ -161,12 +162,12 @@ class _GetSchema:
         )
 
     def property_name(self, name, type_):
-        # A field may alias its property name via SchemaAnnotation(name=...) in
+        # A field may alias its property name via SchemaAnnotation(alias=...) in
         # its Annotated metadata; otherwise the field name is used verbatim.
         if t.get_origin(type_) is t.Annotated:
             meta = t.get_args(type_)[1]
-            if isinstance(meta, SchemaAnnotation) and meta.name is not None:
-                return meta.name
+            if isinstance(meta, SchemaAnnotation) and meta.alias is not None:
+                return meta.alias
         return name
 
     def get_field_schema(self, type_, default, annotation):
@@ -398,14 +399,14 @@ class _GetSchema:
 # --- data serde -------------------------------------------------------------
 # The other direction of the dataclass<->JSON bridge: convert dataclass
 # instances to and from JSON-ready dicts, honouring the same
-# `SchemaAnnotation(name=...)` aliases the schema uses for property names. This
+# `SchemaAnnotation(alias=...)` aliases the schema uses for property names. This
 # is generic -- no MCP knowledge -- and driven by the annotations defined above.
 
 
 def to_dict(instance: t.Any) -> t.Any:
     """Render a dataclass (or a tree of them) as a JSON-ready value.
 
-    Each field is emitted under its `SchemaAnnotation(name=...)` alias (else the
+    Each field is emitted under its `SchemaAnnotation(alias=...)` alias (else the
     field name), recursing into nested dataclasses, `list`/`tuple`, `dict`, and
     `enum.Enum`; scalars pass through. `None`-valued fields are omitted -- an
     absent key, never a literal `null`. The inverse is `from_dict`.
@@ -433,13 +434,13 @@ def _dataclass_to_dict(instance):
 
 
 def _alias(name, hint):
-    # A field aliases its serialised name via SchemaAnnotation(name=...) in its
+    # A field aliases its serialised name via SchemaAnnotation(alias=...) in its
     # Annotated metadata; otherwise the field name is used verbatim. (The schema
     # side reads the same alias in `_GetSchema.property_name`.)
     if t.get_origin(hint) is t.Annotated:
         meta = t.get_args(hint)[1]
-        if isinstance(meta, SchemaAnnotation) and meta.name is not None:
-            return meta.name
+        if isinstance(meta, SchemaAnnotation) and meta.alias is not None:
+            return meta.alias
     return name
 
 
@@ -447,7 +448,7 @@ def from_dict(cls: type, data: dict) -> t.Any:
     """Reconstruct a `cls` dataclass instance from a JSON-ready dict.
 
     The inverse of `to_dict`: each key is matched back to its field by the
-    field's `SchemaAnnotation(name=...)` alias (else the field name), and values
+    field's `SchemaAnnotation(alias=...)` alias (else the field name), and values
     are reconstructed by field type (nested dataclasses, `list`s, `dict`s,
     enums, `X | None`). An omitted key leaves the field's default. `from_dict`
     trusts the shape of `data` -- it builds, it does not validate.

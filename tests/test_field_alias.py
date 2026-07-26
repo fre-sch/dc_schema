@@ -1,4 +1,4 @@
-"""Field property-name alias via `SchemaAnnotation(name=...)`.
+"""Field property-name alias via `SchemaAnnotation(alias=...)`.
 
 A field keeps its (snake_case) Python name but takes the alias as its property
 name in `properties`/`required`. The alias is a directive, never a keyword in
@@ -14,10 +14,10 @@ from dc_schema import get_schema, SchemaAnnotation
 @dataclasses.dataclass
 class DcAlias:
     website_url: typing.Annotated[
-        str, SchemaAnnotation(name="websiteUrl", format="uri")
+        str, SchemaAnnotation(alias="websiteUrl", format="uri")
     ]
     list_changed: typing.Annotated[
-        bool | None, SchemaAnnotation(name="listChanged")
+        bool | None, SchemaAnnotation(alias="listChanged")
     ] = None
     plain: int = 0
 
@@ -25,7 +25,7 @@ class DcAlias:
 def test_alias_renames_property_and_required():
     schema = get_schema(DcAlias)
     assert schema["properties"] == {
-        # aliased to the wire name; `name` never leaks into the body, `format`
+        # aliased to the wire name; `alias` never leaks into the body, `format`
         # (a real keyword) does.
         "websiteUrl": {"type": "string", "format": "uri"},
         # alias-only annotation on `X | None` still collapses to a type array.
