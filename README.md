@@ -5,9 +5,18 @@ Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from 
 
 > [!NOTE]
 > Fork of [Peter554/dc_schema](https://github.com/Peter554/dc_schema)
+> This is a **scratch-your-own-itch project**, meaning
+> - Consider this experimental
+> - No release to https://pypi.org/
+> - I don't intend to become a maintainer, that's not the kind of itch I want
+>   to scratch here.
+> - Use the git+https URL to install
+> - Want to become a maintainer? Fork or copy it, maintain it. See LICENSE.
+
+## Install
 
 ```
-pip install pip@git+https://github.com/fre-sch/dc_schema
+pip install 'dc_schema @ git+https://github.com/fre-sch/dc_schema@master'
 ```
 
 ## Assumptions
