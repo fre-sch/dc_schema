@@ -5,9 +5,18 @@ Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from 
 
 > [!NOTE]
 > Fork of [Peter554/dc_schema](https://github.com/Peter554/dc_schema)
+> This is a **scratch-your-own-itch project**, meaning
+> - Consider this experimental
+> - No release to https://pypi.org/
+> - I don't intend to become a maintainer, that's not the kind of itch I want
+>   to scratch here.
+> - Use the git+https URL to install
+> - Want to become a maintainer? Fork or copy it, maintain it. See LICENSE.
+
+## Install
 
 ```
-pip install pip@git+https://github.com/fre-sch/dc_schema
+pip install 'dc_schema @ git+https://github.com/fre-sch/dc_schema@master'
 ```
 
 ## Assumptions
@@ -103,6 +112,33 @@ print(json.dumps(get_schema(Author), indent=2))
 }
 ```
 
+### Instances to and from dicts
+
+Where `get_schema` describes the shape, `to_dict` and `from_dict` move the data:
+convert a dataclass instance to a JSON-ready `dict` and reconstruct it again.
+Both are the inverse of each other and recurse through nested dataclasses,
+`list`/`tuple`, `dict`, and `enum.Enum`.
+
+```py
+from dc_schema import to_dict, from_dict
+
+book = Book(title="A Wizard of Earthsea", published=True)
+
+data = to_dict(book)
+print(data)  # {'title': 'A Wizard of Earthsea', 'published': True}
+
+restored = from_dict(Book, data)
+print(restored)  # Book(title='A Wizard of Earthsea', published=True)
+```
+
+`None`-valued fields are omitted rather than written as a literal `null`, so an
+absent key falls back to the field's default on the way back in. Field aliases
+(see [Annotations](#annotations)) are honoured on both sides -- a field is
+emitted and matched under its `SchemaAnnotation(alias=...)` name. Pass
+`by_alias=False` to both calls to use the raw field names instead.
+
+`from_dict` trusts the shape of its input: it builds, it does not validate.
+
 ### Annotations
 
 You can use [typing.Annotated](https://docs.python.org/3/library/typing.html#typing.Annotated) + `SchemaAnnotation`
@@ -172,7 +208,10 @@ print(json.dumps(get_schema(Author), indent=2))
 }
 ```
 
-To customize the metadata of a dataclass itself, use a `SchemaConfig`.
+To customize the metadata of a dataclass itself, use a `SchemaConfig`. The
+class-level `description` is taken only from here -- `get_schema` never reads the
+class docstring -- so a schema description is always an explicit choice, kept
+distinct from the docstring that documents the dataclass in code.
 
 ```py
 import dataclasses
@@ -209,11 +248,6 @@ print(json.dumps(get_schema(User), indent=2))
   ]
 }
 ```
-
-### Further examples
-
-See the [tests](https://github.com/Peter554/dc_schema/blob/master/tests/test_dc_schema.py)
-for full example usage.
 
 ## CLI
 

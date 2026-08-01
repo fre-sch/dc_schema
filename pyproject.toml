@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "dc_schema"
-version = "1.0.0"
+version = "1.0.1"
 description = "Generate JSON schema from python dataclasses"
 authors = [
     { name = "Peter Byfield", email = "byfield554@gmail.com" },
@@ -19,7 +19,7 @@ requires-python = ">=3.12,<3.13"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "jsonschema>=4"]
-dev = ["black>=24"]
+dev = ["black>=24", "nn-semver @ git+https://github.com/fre-sch/nn-semver@master"]
 
 [project.scripts]
 dc_schema = "dc_schema.cli:main"
