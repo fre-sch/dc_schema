@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections.abc
 import datetime
 import enum
 import dataclasses
@@ -33,7 +34,11 @@ _Format = t.Literal[
 ]
 
 
-@dataclasses.dataclass(frozen=True)
+# Keyword-only: with twenty-odd optional fields in a fixed declaration order,
+# positional construction was never usable, and lifting the fields out of the
+# positional ordering lets a subclass add a required positional field of its
+# own -- which is how `Choices` takes its payload.
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SchemaAnnotation:
     # `alias` is a directive, not a schema keyword: it overrides the property
     # name a field takes in its dataclass's `properties` (and `required`), and
@@ -78,12 +83,82 @@ class SchemaAnnotation:
             "max_items": "maxItems",
             "unique_items": "uniqueItems",
         }
-        directives = ("alias", "additional_properties")
+        directives = ("alias", "additional_properties", "choices")
         return {
             key_map.get(k, k): v
             for k, v in dataclasses.asdict(self).items()
             if v is not None and k not in directives
         }
+
+
+@dataclasses.dataclass(frozen=True)
+class Choices(SchemaAnnotation):
+    """A set of string choices, declared inline at the field.
+
+    A mapping is titled -- value to title -- and emits `{const, title}`
+    branches; a sequence is untitled and emits a plain `enum`:
+
+        dough: t.Annotated[str, Choices({"thin": "Thin & Crispy",
+                                         "deep-dish": "Chicago Deep Dish"})]
+        toppings: t.Annotated[list[str], Choices(["pepperoni", "mushroom"])]
+
+    Cardinality comes from the *container*: a `str` picks one (`oneOf`), a
+    `list[str]` picks several (`items.anyOf`). The annotation says nothing about
+    arity, so it can never contradict the field it annotates. Being inline, it
+    emits inline -- unlike an `enum.Enum`, a named type, which emits a `$ref`.
+
+    `Choices` is a `SchemaAnnotation`, so it carries `description`, `title`,
+    `min_items`, `alias` and the rest itself, and `Annotated` keeps taking
+    exactly one metadatum. Like `alias`, `choices` is a directive rather than a
+    keyword -- it shapes the body -- so `schema()` excludes it.
+    """
+
+    choices: t.Union[t.Mapping[str, str], t.Sequence[str]]
+
+    def __post_init__(self):
+        if isinstance(self.choices, str):
+            raise TypeError(
+                "choices must be a mapping or a sequence of strings, received "
+                f"the string {self.choices!r}"
+            )
+        if not self.choices:
+            raise ValueError("choices must hold at least one choice")
+        self.validate_values()
+        self.validate_titles()
+
+    def validate_values(self):
+        seen = set()
+        for value in self.choices:
+            if not isinstance(value, str):
+                raise TypeError(f"choice value must be a string: {value!r}")
+            if value in seen:
+                raise ValueError(f"duplicate choice value: {value!r}")
+            seen.add(value)
+
+    def validate_titles(self):
+        for value, title in self.titles().items():
+            if not isinstance(title, str):
+                raise TypeError(
+                    f"title of choice {value!r} must be a string: {title!r}"
+                )
+
+    def titles(self):
+        """The value-to-title mapping; empty when the set is untitled."""
+        if isinstance(self.choices, collections.abc.Mapping):
+            return dict(self.choices)
+        return {}
+
+    def choice_schema(self, combinator):
+        """The choice body: labelled branches when titled, `enum` when not."""
+        titles = self.titles()
+        if titles:
+            return {
+                combinator: [
+                    {"const": value, "title": title}
+                    for value, title in titles.items()
+                ]
+            }
+        return {"enum": list(self.choices)}
 
 
 class _GetSchema:
@@ -171,6 +246,8 @@ class _GetSchema:
         return name
 
     def get_field_schema(self, type_, default, annotation):
+        if isinstance(annotation, Choices):
+            return self.get_choices_schema(type_, default, annotation)
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
         if type_ is t.Any:
@@ -242,6 +319,26 @@ class _GetSchema:
         if collapsible:
             return {"type": [concrete[0]["type"], "null"]}
         return {"anyOf": arms}
+
+    def get_choices_schema(self, type_, default, annotation):
+        # The container declares cardinality: a `str` picks one choice, a
+        # `list[str]` picks several. Nothing else carries a choice set --
+        # `Choices` is a new spelling, so no existing annotation is reread.
+        if type_ == str:
+            body = {"type": "string", **annotation.choice_schema("oneOf")}
+        elif t.get_args(type_) == (str,) and t.get_origin(type_) == list:
+            body = {
+                "type": "array",
+                "items": annotation.choice_schema("anyOf"),
+            }
+        else:
+            raise TypeError(
+                "Choices annotates `str` (pick one) or `list[str]` (pick "
+                f"several), not '{type_}'"
+            )
+        if default is _MISSING:
+            return {**body, **annotation.schema()}
+        return {**body, "default": default, **annotation.schema()}
 
     def get_literal_schema(self, type_, default, annotation):
         if default is _MISSING:
