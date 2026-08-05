@@ -4,7 +4,9 @@ These use plain dataclasses only -- dc_schema stays uncoupled from MCP.
 """
 
 import dataclasses
+import datetime
 import enum
+import json
 import typing
 
 import pytest
@@ -169,3 +171,103 @@ def test_by_alias_false_round_trips():
     raw = dc_schema.to_dict(original, by_alias=False)
     assert "stroke_color" in raw and "strokeColor" not in raw
     assert dc_schema.from_dict(Shape, raw, by_alias=False) == original
+
+
+@dataclasses.dataclass
+class Booking:
+    """The field types the generator emits `format`/`uniqueItems` for."""
+
+    day: datetime.date
+    stamp: datetime.datetime
+    tags: set[str]
+    seats: frozenset[str]
+    cancelled_on: typing.Optional[datetime.date] = None
+
+
+def test_to_dict_renders_date_and_set_json_ready():
+    booking = Booking(
+        day=datetime.date(2026, 8, 5),
+        stamp=datetime.datetime(2026, 8, 5, 10, 30),
+        tags={"window", "quiet"},
+        seats=frozenset({"12a"}),
+    )
+    result = dc_schema.to_dict(booking)
+    assert result["day"] == "2026-08-05"
+    assert result["stamp"] == "2026-08-05T10:30:00"
+    # a set has no order to promise: the items are there, the sequence is not.
+    assert sorted(result["tags"]) == ["quiet", "window"]
+    assert result["seats"] == ["12a"]
+    json.dumps(result)  # the whole point: `to_dict` promises JSON-ready
+
+
+def test_from_dict_rebuilds_date_and_set_from_annotations():
+    booking = dc_schema.from_dict(
+        Booking,
+        {
+            "day": "2026-08-05",
+            "stamp": "2026-08-05T10:30:00",
+            "tags": ["window", "quiet"],
+            "seats": ["12a"],
+            "cancelled_on": "2026-09-01",
+        },
+    )
+    assert booking.day == datetime.date(2026, 8, 5)
+    assert booking.stamp == datetime.datetime(2026, 8, 5, 10, 30)
+    assert booking.tags == {"window", "quiet"}
+    assert isinstance(booking.tags, set)
+    assert booking.seats == frozenset({"12a"})
+    assert isinstance(booking.seats, frozenset)
+    # `X | None` reaches the same reconstruction through the union arm.
+    assert booking.cancelled_on == datetime.date(2026, 9, 1)
+
+
+def test_date_and_set_round_trip_through_json():
+    original = Booking(
+        day=datetime.date(2026, 8, 5),
+        stamp=datetime.datetime(2026, 8, 5, 10, 30),
+        tags={"window", "quiet"},
+        seats=frozenset({"12a"}),
+        cancelled_on=datetime.date(2026, 9, 1),
+    )
+    wire = json.loads(json.dumps(dc_schema.to_dict(original)))
+    assert dc_schema.from_dict(Booking, wire) == original
+
+
+def test_from_dict_accepts_a_set_for_a_set_field():
+    # `from_dict` builds from whatever shape it is handed; a caller who never
+    # went through JSON still gets the annotated container back.
+    booking = dc_schema.from_dict(
+        Booking,
+        {
+            "day": "2026-08-05",
+            "stamp": "2026-08-05T10:30:00",
+            "tags": {"window"},
+            "seats": {"12a"},
+        },
+    )
+    assert booking.tags == {"window"}
+    assert booking.seats == frozenset({"12a"})
+
+
+def test_bare_set_annotation_still_yields_a_set():
+    @dataclasses.dataclass
+    class Loose:
+        tags: set
+
+    assert dc_schema.from_dict(Loose, {"tags": ["a", "b"]}).tags == {"a", "b"}
+
+
+def test_annotated_date_and_set_reach_the_same_branches():
+    @dataclasses.dataclass
+    class Annotated:
+        day: typing.Annotated[
+            datetime.date, dc_schema.SchemaAnnotation(alias="theDay")
+        ]
+        tags: typing.Annotated[
+            set[str], dc_schema.SchemaAnnotation(min_items=1)
+        ]
+
+    original = Annotated(day=datetime.date(2026, 8, 5), tags={"a"})
+    wire = dc_schema.to_dict(original)
+    assert wire == {"theDay": "2026-08-05", "tags": ["a"]}
+    assert dc_schema.from_dict(Annotated, wire) == original
