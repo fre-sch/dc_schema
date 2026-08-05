@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections.abc
 import datetime
 import enum
 import dataclasses
@@ -33,19 +34,17 @@ _Format = t.Literal[
 ]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SchemaAnnotation:
     # `alias` is a directive, not a schema keyword: it overrides the property
     # name a field takes in its dataclass's `properties` (and `required`), and
     # the serialised key `to_dict`/`from_dict` use. It is excluded from
     # `schema()` so it never leaks into the field's schema body.
     alias: t.Optional[str] = None
-    # `additional_properties` closes (or shapes) an object body: `False` forbids
+    # `additional_properties` closes an object body: `False` forbids
     # extra properties, `True` allows any, and a type generates a subschema each
     # extra property must validate against (2020-12's `additionalProperties`
-    # takes a schema, not just a boolean). It is a body concern, so it is
-    # excluded from `schema()` and consumed by `create_dc_schema`, never emitted
-    # as a `$ref` sibling. Set it via a dataclass's `SchemaConfig.annotation`.
+    # takes a schema, not just a boolean).
     additional_properties: t.Union[bool, type, None] = None
     title: t.Optional[str] = None
     description: t.Optional[str] = None
@@ -78,12 +77,76 @@ class SchemaAnnotation:
             "max_items": "maxItems",
             "unique_items": "uniqueItems",
         }
-        directives = ("alias", "additional_properties")
+        directives = ("alias", "additional_properties", "choices")
         return {
             key_map.get(k, k): v
             for k, v in dataclasses.asdict(self).items()
             if v is not None and k not in directives
         }
+
+
+@dataclasses.dataclass(frozen=True)
+class Choices(SchemaAnnotation):
+    """
+    Definition for string-schema with choices.
+
+    A mapping emits `{const, title}`, a sequence emits a plain `enum`:
+
+        dough: t.Annotated[str, Choices({"thin": "Thin & Crispy",
+                                         "deep-dish": "Chicago Deep Dish"})]
+        toppings: t.Annotated[list[str], Choices(["pepperoni", "mushroom"])]
+
+    Cardinality comes from the *container*: a `str` becomes one `oneOf`, a
+    `list[str]` becomes several `items.anyOf`. Unlike an `enum.Enum`, or a named
+    type, generates schema inline instead of a `$ref`.
+    """
+
+    choices: t.Union[t.Mapping[str, str], t.Sequence[str]]
+
+    def __post_init__(self):
+        if isinstance(self.choices, str):
+            raise TypeError(
+                "choices must be a mapping or a sequence of strings, received "
+                f"the string {self.choices!r}"
+            )
+        if not self.choices:
+            raise ValueError("choices must hold at least one choice")
+        self.validate_values()
+        self.validate_titles()
+
+    def validate_values(self):
+        seen = set()
+        for value in self.choices:
+            if not isinstance(value, str):
+                raise TypeError(f"choice value must be a string: {value!r}")
+            if value in seen:
+                raise ValueError(f"duplicate choice value: {value!r}")
+            seen.add(value)
+
+    def validate_titles(self):
+        for value, title in self.titles().items():
+            if not isinstance(title, str):
+                raise TypeError(
+                    f"title of choice {value!r} must be a string: {title!r}"
+                )
+
+    def titles(self):
+        """The value-to-title mapping; empty when the set is untitled."""
+        if isinstance(self.choices, collections.abc.Mapping):
+            return dict(self.choices)
+        return {}
+
+    def choice_schema(self, combinator):
+        """The choice body: labelled branches when titled, `enum` when not."""
+        titles = self.titles()
+        if titles:
+            return {
+                combinator: [
+                    {"const": value, "title": title}
+                    for value, title in titles.items()
+                ]
+            }
+        return {"enum": list(self.choices)}
 
 
 class _GetSchema:
@@ -171,6 +234,8 @@ class _GetSchema:
         return name
 
     def get_field_schema(self, type_, default, annotation):
+        if isinstance(annotation, Choices):
+            return self.get_choices_schema(type_, default, annotation)
         if dataclasses.is_dataclass(type_):
             return self.get_dc_schema(type_, annotation)
         if type_ is t.Any:
@@ -242,6 +307,26 @@ class _GetSchema:
         if collapsible:
             return {"type": [concrete[0]["type"], "null"]}
         return {"anyOf": arms}
+
+    def get_choices_schema(self, type_, default, annotation):
+        # The container declares cardinality: a `str` picks one choice, a
+        # `list[str]` picks several. Nothing else carries a choice set --
+        # `Choices` is a new spelling, so no existing annotation is reread.
+        if type_ == str:
+            body = {"type": "string", **annotation.choice_schema("oneOf")}
+        elif t.get_args(type_) == (str,) and t.get_origin(type_) == list:
+            body = {
+                "type": "array",
+                "items": annotation.choice_schema("anyOf"),
+            }
+        else:
+            raise TypeError(
+                "Choices annotates `str` (pick one) or `list[str]` (pick "
+                f"several), not '{type_}'"
+            )
+        if default is _MISSING:
+            return {**body, **annotation.schema()}
+        return {**body, "default": default, **annotation.schema()}
 
     def get_literal_schema(self, type_, default, annotation):
         if default is _MISSING:
@@ -399,8 +484,7 @@ class _GetSchema:
 # --- data serde -------------------------------------------------------------
 # The other direction of the dataclass<->JSON bridge: convert dataclass
 # instances to and from JSON-ready dicts, honouring the same
-# `SchemaAnnotation(alias=...)` aliases the schema uses for property names. This
-# is generic -- no MCP knowledge -- and driven by the annotations defined above.
+# `SchemaAnnotation(alias=...)` aliases the schema uses for property names.
 
 
 @t.runtime_checkable
