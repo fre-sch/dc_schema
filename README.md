@@ -117,7 +117,7 @@ print(json.dumps(get_schema(Author), indent=2))
 Where `get_schema` describes the shape, `to_dict` and `from_dict` move the data:
 convert a dataclass instance to a JSON-ready `dict` and reconstruct it again.
 Both are the inverse of each other and recurse through nested dataclasses,
-`list`/`tuple`, `dict`, and `enum.Enum`.
+`list`/`tuple`/`set`/`frozenset`, `dict`, and `enum.Enum`.
 
 ```py
 from dc_schema import to_dict, from_dict
@@ -136,6 +136,14 @@ absent key falls back to the field's default on the way back in. Field aliases
 (see [Annotations](#annotations)) are honoured on both sides -- a field is
 emitted and matched under its `SchemaAnnotation(alias=...)` name. Pass
 `by_alias=False` to both calls to use the raw field names instead.
+
+Two field types have no JSON counterpart, so the pair converts them. A
+`datetime.date` or `datetime.datetime` is written with `isoformat()` -- the
+RFC 3339 string its `format: "date"` / `"date-time"` schema promises -- and read
+back with `fromisoformat()`. A `set` or `frozenset` is written as an array
+(unordered, so the item order means nothing) and collected back into the
+container the field asks for. Going out, the value says what it is; coming back,
+only the annotation can, which is why `from_dict` needs the class.
 
 `from_dict` trusts the shape of its input: it builds, it does not validate.
 
