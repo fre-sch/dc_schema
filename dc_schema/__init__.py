@@ -34,10 +34,6 @@ _Format = t.Literal[
 ]
 
 
-# Keyword-only: with twenty-odd optional fields in a fixed declaration order,
-# positional construction was never usable, and lifting the fields out of the
-# positional ordering lets a subclass add a required positional field of its
-# own -- which is how `Choices` takes its payload.
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SchemaAnnotation:
     # `alias` is a directive, not a schema keyword: it overrides the property
@@ -45,12 +41,10 @@ class SchemaAnnotation:
     # the serialised key `to_dict`/`from_dict` use. It is excluded from
     # `schema()` so it never leaks into the field's schema body.
     alias: t.Optional[str] = None
-    # `additional_properties` closes (or shapes) an object body: `False` forbids
+    # `additional_properties` closes an object body: `False` forbids
     # extra properties, `True` allows any, and a type generates a subschema each
     # extra property must validate against (2020-12's `additionalProperties`
-    # takes a schema, not just a boolean). It is a body concern, so it is
-    # excluded from `schema()` and consumed by `create_dc_schema`, never emitted
-    # as a `$ref` sibling. Set it via a dataclass's `SchemaConfig.annotation`.
+    # takes a schema, not just a boolean).
     additional_properties: t.Union[bool, type, None] = None
     title: t.Optional[str] = None
     description: t.Optional[str] = None
@@ -93,24 +87,18 @@ class SchemaAnnotation:
 
 @dataclasses.dataclass(frozen=True)
 class Choices(SchemaAnnotation):
-    """A set of string choices, declared inline at the field.
+    """
+    Definition for string-schema with choices.
 
-    A mapping is titled -- value to title -- and emits `{const, title}`
-    branches; a sequence is untitled and emits a plain `enum`:
+    A mapping emits `{const, title}`, a sequence emits a plain `enum`:
 
         dough: t.Annotated[str, Choices({"thin": "Thin & Crispy",
                                          "deep-dish": "Chicago Deep Dish"})]
         toppings: t.Annotated[list[str], Choices(["pepperoni", "mushroom"])]
 
-    Cardinality comes from the *container*: a `str` picks one (`oneOf`), a
-    `list[str]` picks several (`items.anyOf`). The annotation says nothing about
-    arity, so it can never contradict the field it annotates. Being inline, it
-    emits inline -- unlike an `enum.Enum`, a named type, which emits a `$ref`.
-
-    `Choices` is a `SchemaAnnotation`, so it carries `description`, `title`,
-    `min_items`, `alias` and the rest itself, and `Annotated` keeps taking
-    exactly one metadatum. Like `alias`, `choices` is a directive rather than a
-    keyword -- it shapes the body -- so `schema()` excludes it.
+    Cardinality comes from the *container*: a `str` becomes one `oneOf`, a
+    `list[str]` becomes several `items.anyOf`. Unlike an `enum.Enum`, or a named
+    type, generates schema inline instead of a `$ref`.
     """
 
     choices: t.Union[t.Mapping[str, str], t.Sequence[str]]
@@ -496,8 +484,7 @@ class _GetSchema:
 # --- data serde -------------------------------------------------------------
 # The other direction of the dataclass<->JSON bridge: convert dataclass
 # instances to and from JSON-ready dicts, honouring the same
-# `SchemaAnnotation(alias=...)` aliases the schema uses for property names. This
-# is generic -- no MCP knowledge -- and driven by the annotations defined above.
+# `SchemaAnnotation(alias=...)` aliases the schema uses for property names.
 
 
 @t.runtime_checkable
