@@ -131,21 +131,14 @@ restored = from_dict(Book, data)
 print(restored)  # Book(title='A Wizard of Earthsea', published=True)
 ```
 
-`None`-valued fields are omitted rather than written as a literal `null`, so an
-absent key falls back to the field's default on the way back in. Field aliases
-(see [Annotations](#annotations)) are honoured on both sides -- a field is
-emitted and matched under its `SchemaAnnotation(alias=...)` name. Pass
-`by_alias=False` to both calls to use the raw field names instead.
-
-Two field types have no JSON counterpart, so the pair converts them. A
-`datetime.date` or `datetime.datetime` is written with `isoformat()` -- the
-RFC 3339 string its `format: "date"` / `"date-time"` schema promises -- and read
-back with `fromisoformat()`. A `set` or `frozenset` is written as an array
-(unordered, so the item order means nothing) and collected back into the
-container the field asks for. Going out, the value says what it is; coming back,
-only the annotation can, which is why `from_dict` needs the class.
-
-`from_dict` trusts the shape of its input: it builds, it does not validate.
+* `None`-valued fields are omitted rather than written as a literal `null`, so an
+absent key falls back to the field's default on the way back in.
+* `SchemaAnnotation(alias=...)` is respected to convert dict key names. Use
+`to_dict(by_alias=False)` and `from_dict(by_alias=False)` to use the raw field names instead.
+* Fields annotated with `datetime.date` and `datetime.datetime` are converted to and from RFC 3339 strings.
+* `to_dict` converts `set` and `frozenset` to lists, `from_dict` iterates and
+collects into the annotated type.
+* `from_dict` trusts the shape of its input: it builds, it does not validate.
 
 ### Annotations
 
@@ -220,10 +213,9 @@ print(json.dumps(get_schema(Author), indent=2))
 
 ### Choices
 
-`Choices` declares a set of string choices inline at the field. A mapping is
-titled -- value to title -- and emits `{const, title}` branches; a sequence is
-untitled and emits a plain `enum`. The *container* declares how many may be
-picked: a `str` picks one (`oneOf`), a `list[str]` picks several (`items.anyOf`).
+`Choices` declares a set of string choices inline at the field. 
+A mapping emits `{const, title}`, a sequence emits a plain `enum`. Cardinality 
+comes from the *container*: a `str` becomes one `oneOf`, a `list[str]` becomes `anyOf`.
 
 `Choices` is a `SchemaAnnotation`, so it carries `description`, `title`,
 `min_items`, `alias` and the rest itself -- the choices are the one positional
@@ -289,10 +281,9 @@ Choice values must be strings, and must be distinct -- two branches sharing a
 `const` would make a value valid under both, so `oneOf` would reject a legal
 value. Both are checked when the `Choices` is constructed.
 
-Being written inline, `Choices` emits inline. An `enum.Enum` is a named type
-declared elsewhere, and emits a `$def` plus a `$ref` -- the Python spelling and
-the JSON Schema spelling agree, so no flag chooses between them.
+`Choices` emits inline schema, not `$defs` + `$ref`.
 
+### `dataclass` Metadata
 To customize the metadata of a dataclass itself, use a `SchemaConfig`. The
 class-level `description` is taken only from here -- `get_schema` never reads the
 class docstring -- so a schema description is always an explicit choice, kept
