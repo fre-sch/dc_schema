@@ -501,9 +501,11 @@ def to_dict(
 
     `instance` must be a dataclass instance (not a bare value or a class).
     Each field is emitted under its `SchemaAnnotation(alias=...)` alias (else the
-    field name), recursing into nested dataclasses, `list`/`tuple`, `dict`, and
-    `enum.Enum`; scalars pass through. `None`-valued fields are omitted -- an
-    absent key, never a literal `null`. The inverse is `from_dict`.
+    field name), recursing into nested dataclasses, `list`/`tuple`/`set`/
+    `frozenset` (all as arrays), `dict`, and `enum.Enum`; a `date`/`datetime`
+    becomes its `isoformat()` string, and other scalars pass through.
+    `None`-valued fields are omitted -- an absent key, never a literal `null`.
+    The inverse is `from_dict`.
 
     `by_alias` (default `True`) applies the aliases; pass `False` to emit raw
     field names instead (e.g. to store with the Python names, aliasing only at
@@ -523,7 +525,8 @@ def _to_value(value, by_alias):
     # serializer -- it stays private (dc_schema supports only what it exports).
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return _dataclass_to_dict(value, by_alias)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, set, frozenset)):
+        # A set has no order to preserve, so its items are emitted as they come.
         return [_to_value(item, by_alias=by_alias) for item in value]
     if isinstance(value, dict):
         return {
@@ -532,6 +535,10 @@ def _to_value(value, by_alias):
         }
     if isinstance(value, enum.Enum):
         return value.value
+    # `datetime` subclasses `date`, and each `isoformat` writes the RFC 3339
+    # form its own `format` keyword promises -- one branch serves both.
+    if isinstance(value, datetime.date):
+        return value.isoformat()
     return value
 
 
@@ -570,6 +577,11 @@ def from_dict(cls: type, data: dict, *, by_alias: bool = True) -> t.Any:
     enums, `X | None`). An omitted key leaves the field's default. `from_dict`
     trusts the shape of `data` -- it builds, it does not validate.
 
+    Where the wire form cannot name its own type, the annotation decides: a
+    `date`/`datetime` field parses its string with `fromisoformat`, and a
+    `set`/`frozenset` field collects the array it is given (a `set` is accepted
+    just as readily) into that container.
+
     `by_alias` (default `True`) matches keys by alias; pass `False` to match by
     raw field name -- the inverse of `to_dict(..., by_alias=False)`.
     """
@@ -597,6 +609,16 @@ def _value_from_dict(hint, value, by_alias):
         args = t.get_args(hint)
         item_hint = args[0] if args else t.Any
         return [_value_from_dict(item_hint, item, by_alias) for item in value]
+    if hint in (set, frozenset) or origin in (set, frozenset):
+        # A JSON array carries the items; the annotation says to collect them
+        # into a set. Bare `set` is covered too -- unlike `list`, the container
+        # the field asks for is not the one the wire delivers.
+        collect = frozenset if frozenset in (hint, origin) else set
+        args = t.get_args(hint)
+        item_hint = args[0] if args else t.Any
+        return collect(
+            _value_from_dict(item_hint, item, by_alias) for item in value
+        )
     if origin is dict:
         args = t.get_args(hint)
         value_hint = args[1] if args else t.Any
@@ -608,6 +630,12 @@ def _value_from_dict(hint, value, by_alias):
         return _union_from_dict(hint, value, by_alias)
     if isinstance(hint, type) and issubclass(hint, enum.Enum):
         return hint(value)
+    # `datetime` before `date`: it subclasses `date`, whose `fromisoformat`
+    # rejects a date-time string. Same order as `get_field_schema`.
+    if isinstance(hint, type) and issubclass(hint, datetime.datetime):
+        return datetime.datetime.fromisoformat(value)
+    if isinstance(hint, type) and issubclass(hint, datetime.date):
+        return datetime.date.fromisoformat(value)
     return value
 
 
