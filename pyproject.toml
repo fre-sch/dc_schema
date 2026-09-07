@@ -33,15 +33,16 @@ name = "dc_schema"
 [project.urls]
 Repository = "https://gitlab.com/freschu/nn-mcp/dc_schema"
 
-# `explicit = true` confines this index to the names pinned to it below, and a
-# pinned name is looked up nowhere else -- PyPI included.
+# Where our own packages come from. Every name we publish is unique to us --
+# nothing on PyPI claims `nn-dc-schema`, `nn-mcp-types`, `nn-rfc6570-router`
+# or `nn-semver` -- so this is an additional index, not a restricted one.
+#
+# It must not be `explicit`: uv applies `[tool.uv.sources]` only to a
+# project's direct dependencies, so an explicit index is never searched for
+# a transitive one, and the graph fails to resolve.
 [[tool.uv.index]]
 name = "nn-mcp"
 url = "https://gitlab.com/api/v4/groups/141518299/-/packages/pypi/simple"
-explicit = true
-
-[tool.uv.sources]
-nn-semver = { index = "nn-mcp" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
