@@ -15,20 +15,32 @@ maintainers = [
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.15"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "jsonschema>=4"]
-dev = ["black>=24", "nn-semver @ git+https://github.com/fre-sch/nn-semver@master"]
+dev = ["nn-semver>=1.0"]
 
 [project.scripts]
 dc_schema = "dc_schema.cli:main"
 
 [project.urls]
-Repository = "https://github.com/fre-sch/dc_schema"
+Repository = "https://gitlab.com/freschu/nn-mcp/dc_schema"
+
+# `explicit = true` confines this index to the names pinned to it below, and a
+# pinned name is looked up nowhere else -- PyPI included. This package's own
+# name is shared with the upstream package it is forked from, which is what
+# makes that confinement matter to whoever depends on it.
+[[tool.uv.index]]
+name = "nn-mcp"
+url = "https://gitlab.com/api/v4/groups/141518299/-/packages/pypi/simple"
+explicit = true
+
+[tool.uv.sources]
+nn-semver = { index = "nn-mcp" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.black]
+[tool.ruff]
 line-length = 80
