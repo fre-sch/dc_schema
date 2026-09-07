@@ -3,7 +3,7 @@ requires = ["flit_core>=3.9,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "dc_schema"
+name = "nn-dc-schema"
 version = "1.2.0"
 description = "Generate JSON schema from python dataclasses"
 authors = [
@@ -24,13 +24,17 @@ dev = ["nn-semver>=1.0"]
 [project.scripts]
 dc_schema = "dc_schema.cli:main"
 
+# The distribution is nn-dc-schema; the import name stays dc_schema, so the
+# fork remains a drop-in for upstream. flit would otherwise look for a
+# module named after the distribution.
+[tool.flit.module]
+name = "dc_schema"
+
 [project.urls]
 Repository = "https://gitlab.com/freschu/nn-mcp/dc_schema"
 
 # `explicit = true` confines this index to the names pinned to it below, and a
-# pinned name is looked up nowhere else -- PyPI included. This package's own
-# name is shared with the upstream package it is forked from, which is what
-# makes that confinement matter to whoever depends on it.
+# pinned name is looked up nowhere else -- PyPI included.
 [[tool.uv.index]]
 name = "nn-mcp"
 url = "https://gitlab.com/api/v4/groups/141518299/-/packages/pypi/simple"
