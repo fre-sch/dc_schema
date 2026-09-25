@@ -73,7 +73,7 @@ def test_untitled_scalar_emits_enum():
 def test_untitled_collection_emits_items_enum():
     assert prop(UntitledCollection) == {
         "type": "array",
-        "items": {"enum": ["pepperoni", "olive"]},
+        "items": {"type": "string", "enum": ["pepperoni", "olive"]},
     }
 
 
