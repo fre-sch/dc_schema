@@ -317,7 +317,7 @@ class _GetSchema:
         elif t.get_args(type_) == (str,) and t.get_origin(type_) == list:
             body = {
                 "type": "array",
-                "items": annotation.choice_schema("anyOf"),
+                "items": self.choice_items_schema(annotation),
             }
         else:
             raise TypeError(
@@ -327,6 +327,15 @@ class _GetSchema:
         if default is _MISSING:
             return {**body, **annotation.schema()}
         return {**body, "default": default, **annotation.schema()}
+
+    def choice_items_schema(self, annotation):
+        # Untitled items are typed like the scalar, `{"type": "string", "enum":
+        # ...}`; the titled `anyOf` stays bare. Both are the shapes MCP's
+        # elicitation forms require of a multi-select.
+        items = annotation.choice_schema("anyOf")
+        if "enum" in items:
+            return {"type": "string", **items}
+        return items
 
     def get_literal_schema(self, type_, default, annotation):
         if default is _MISSING:

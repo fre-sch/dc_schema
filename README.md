@@ -294,6 +294,7 @@ print(json.dumps(get_schema(PizzaOrder), indent=2))
     "toppings": {
       "type": "array",
       "items": {
+        "type": "string",
         "enum": [
           "pepperoni",
           "mushroom"
