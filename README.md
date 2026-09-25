@@ -10,14 +10,45 @@ Tiny library to generate [JSON schema](https://json-schema.org/) (2020-12) from 
 > - No release to https://pypi.org/
 > - I don't intend to become a maintainer, that's not the kind of itch I want
 >   to scratch here.
-> - Use the git+https URL to install
+> - Install from the GitLab package registry, see [Install](#install)
 > - Want to become a maintainer? Fork or copy it, maintain it. See LICENSE.
 
 ## Install
 
+Published to a private GitLab package registry, not to PyPI. The registry
+serves its own packages and forwards every other name to PyPI, so it is the
+only index to configure.
+
+With uv, in the consuming project's `pyproject.toml`:
+
+```toml
+[[tool.uv.index]]
+name = "nn-mcp"
+url = "https://gitlab.com/api/v4/groups/141518299/-/packages/pypi/simple"
+default = true
 ```
-pip install 'dc_schema @ git+https://github.com/fre-sch/dc_schema@master'
+
+```sh
+uv add nn-dc-schema
 ```
+
+With pip:
+
+```sh
+pip install --index-url https://gitlab.com/api/v4/groups/141518299/-/packages/pypi/simple nn-dc-schema
+```
+
+The registry needs a token. A group deploy token scoped
+`read_package_registry` is enough, in `~/.netrc`:
+
+```
+machine gitlab.com
+login <deploy token username>
+password <deploy token>
+```
+
+The distribution is `nn-dc-schema`; the import name stays `dc_schema`,
+so it remains a drop-in for upstream.
 
 ## Assumptions
 
